@@ -139,4 +139,218 @@ void Chip8::LoadRom(char const* filename) {
 }
 
 //instruction functions
-void Chip8::OP_00E0(){}
+// Clear The Display
+void Chip8::OP_00E0(){
+	memset(video, 0, sizeof(video));
+}
+
+//Jump to Location nnn
+void Chip8::OP_1nnn()
+{
+	uint16_t address = opcode & 0x0FFFu;
+
+	pc = address;
+}
+
+//Set Register Vx == kk
+void Chip8::OP_6xkk()
+{
+	uint8_t Vx = (opcode & 0x0F00u) >> 8u;
+	uint8_t byte = opcode & 0x00FFu;
+
+	registers[Vx] = byte;
+}
+
+//Add Vx; Vx = Vx + kk
+void Chip8::OP_7xkk()
+{
+	uint8_t Vx = (opcode & 0x0F00u) >> 8u;
+	uint8_t byte = opcode & 0x00FFu;
+
+	registers[Vx] += byte;
+}
+
+//Set Index Register I; Set I = nnn
+void Chip8::OP_Annn()
+{
+	uint16_t address = opcode & 0x0FFFu;
+
+	index = address;
+}
+
+//Display/Draw ; Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
+void Chip8::OP_Dxyn()
+{
+    //pass
+}
+
+
+//Return from a subroutine. Overwrites preemptive pc += 2
+
+void Chip8::OP_00EE()
+{
+	--sp;
+	pc = stack[sp];
+}
+
+
+// 2nnn - CALL addr; Call subroutine at nnn.
+
+void Chip8::OP_2nnn()
+{
+	uint16_t address = opcode & 0x0FFFu;
+
+	stack[sp] = pc;
+	++sp;
+	pc = address;
+}
+
+// 3xkk - SE Vx, byte; Skip next instruction if Vx = kk.
+
+void Chip8::OP_3xkk()
+{
+	uint8_t Vx = (opcode & 0x0F00u) >> 8u;
+	uint8_t byte = opcode & 0x00FFu;
+
+	if (registers[Vx] == byte)
+	{
+		pc += 2;
+	}
+}
+
+// 4xkk - SNE Vx, byte Skip next instruction if Vx != kk.
+
+void Chip8::OP_4xkk()
+{
+	uint8_t Vx = (opcode & 0x0F00u) >> 8u;
+	uint8_t byte = opcode & 0x00FFu;
+
+	if (registers[Vx] != byte)
+	{
+		pc += 2;
+	}
+}
+
+// 5xy0 - SE Vx, Vy; Skip next instruction if Vx = Vy.
+void Chip8::OP_5xy0()
+{
+	uint8_t Vx = (opcode & 0x0F00u) >> 8u;
+	uint8_t Vy = (opcode & 0x00F0u) >> 4u;
+
+	if (registers[Vx] == registers[Vy])
+	{
+		pc += 2;
+	}
+}
+
+//6xkk - LD Vx, byte ; Set Vx = kk.
+void Chip8::OP_6xkk()
+{
+	uint8_t Vx = (opcode & 0x0F00u) >> 8u;
+	uint8_t byte = opcode & 0x00FFu;
+
+	registers[Vx] = byte;
+}
+//8xy0 - LD Vx, Vy ; Set Vx = Vy.
+void Chip8::OP_8xy0()
+{
+	uint8_t Vx = (opcode & 0x0F00u) >> 8u;
+	uint8_t Vy = (opcode & 0x00F0u) >> 4u;
+
+	registers[Vx] = registers[Vy];
+}
+
+
+//BITWISE
+//8xy1 - OR Vx, Vy; Set Vx = Vx OR Vy.
+void Chip8::OP_8xy1()
+{
+	uint8_t Vx = (opcode & 0x0F00u) >> 8u;
+	uint8_t Vy = (opcode & 0x00F0u) >> 4u;
+
+	registers[Vx] |= registers[Vy];
+}
+
+
+//8xy2 - AND Vx, Vy Set Vx = Vx AND Vy.
+void Chip8::OP_8xy2()
+{
+	uint8_t Vx = (opcode & 0x0F00u) >> 8u;
+	uint8_t Vy = (opcode & 0x00F0u) >> 4u;
+
+	registers[Vx] &= registers[Vy];
+}
+
+//8xy3 - XOR Vx, Vy Set Vx = Vx XOR Vy.
+void Chip8::OP_8xy3()
+{
+	uint8_t Vx = (opcode & 0x0F00u) >> 8u;
+	uint8_t Vy = (opcode & 0x00F0u) >> 4u;
+
+	registers[Vx] ^= registers[Vy];
+}
+
+
+//8xy4 - ADD Vx, Vy; Set Vx = Vx + Vy, set VF = carry.
+//The values of Vx and Vy are added together. If the result is greater than 8 bits (i.e., > 255,) VF is set to 1, otherwise 0. Only the lowest 8 bits of the result are kept, and stored in Vx.
+
+void Chip8::OP_8xy4()
+{
+	uint8_t Vx = (opcode & 0x0F00u) >> 8u;
+	uint8_t Vy = (opcode & 0x00F0u) >> 4u;
+
+	uint16_t sum = registers[Vx] + registers[Vy];
+
+	if (sum > 255U)
+	{
+		registers[0xF] = 1;
+	}
+	else
+	{
+		registers[0xF] = 0;
+	}
+
+	registers[Vx] = sum & 0xFFu;
+}
+
+
+//8xy5 - SUB Vx, Vy ; Set Vx = Vx - Vy, set VF = NOT borrow.
+//If Vx > Vy, then VF is set to 1, otherwise 0. Then Vy is subtracted from Vx, and the results stored in Vx.
+
+void Chip8::OP_8xy5()
+{
+	uint8_t Vx = (opcode & 0x0F00u) >> 8u;
+	uint8_t Vy = (opcode & 0x00F0u) >> 4u;
+
+	if (registers[Vx] > registers[Vy])
+	{
+		registers[0xF] = 1;
+	}
+	else
+	{
+		registers[0xF] = 0;
+	}
+
+	registers[Vx] -= registers[Vy];
+}
+
+
+//8xy7 - SUBN Vx, Vy ; Set Vx = Vy - Vx, set VF = NOT borrow.
+//If Vy > Vx, then VF is set to 1, otherwise 0. Then Vx is subtracted from Vy, and the results stored in Vx.
+
+void Chip8::OP_8xy7()
+{
+	uint8_t Vx = (opcode & 0x0F00u) >> 8u;
+	uint8_t Vy = (opcode & 0x00F0u) >> 4u;
+
+	if (registers[Vy] > registers[Vx])
+	{
+		registers[0xF] = 1;
+	}
+	else
+	{
+		registers[0xF] = 0;
+	}
+
+	registers[Vx] = registers[Vy] - registers[Vx];
+}
