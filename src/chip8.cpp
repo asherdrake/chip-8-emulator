@@ -95,6 +95,30 @@ Chip8::Chip8()
 	}
 }
 
+void Chip8::Cycle()
+{
+	// FETCH - opcode
+	opcode = (memory[pc] << 8u) | memory[pc + 1];
+
+	// Increment the program counter before we execute anything
+	pc += 2;
+
+	// Decode and Execute
+	((*this).*(table[(opcode & 0xF000u) >> 12u]))();
+
+	// Decrement the delay timer if it's been set
+	if (delay_timer > 0)
+	{
+		--delay_timer;
+	}
+
+	// Decrement the sound timer if it's been set
+	if (sound_timer > 0)
+	{
+		--sound_timer;
+	}
+}
+
 void Chip8::Table0()
 {
 	((*this).*(table0[opcode & 0x000Fu]))();
@@ -189,8 +213,44 @@ void Chip8::OP_Annn()
 // Display/Draw ; Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
 void Chip8::OP_Dxyn()
 {
-	uint8_t x = registers[(opcode & 0x0F00u >> 8u)];
-	uint8_t y = registers[(opcode & 0x00F0u >> 8u)];
+	uint8_t x = registers[(opcode & 0x0F00u >> 8u)] % 64;
+	uint8_t y = registers[(opcode & 0x00F0u >> 8u)] % 32;
+	registers[0xF] = 0;
+	uint8_t height = opcode & 0x000Fu;
+
+	for (int row = 0; row < height; row++)
+	{
+		uint8_t sprite_byte = memory[index + row];
+		for (int col = 0; col < 8; col++)
+		{
+			uint8_t sprite_pixel = sprite_byte & (0x80u >> col);
+			uint8_t screen_pixel = video[(y + row) * 32 + (x + col)];
+
+			if (sprite_pixel)
+			{
+				if (screen_pixel)
+				{
+					screen_pixel = 0;
+					registers[0xF] = 1;
+				}
+				else
+				{
+					screen_pixel = sprite_pixel;
+				}
+			}
+
+			if ((x + col) == 64)
+			{
+				break;
+			}
+			x++;
+		}
+		y++;
+		if ((y + row) == 32)
+		{
+			break;
+		}
+	}
 }
 
 // Return from a subroutine. Overwrites preemptive pc += 2
