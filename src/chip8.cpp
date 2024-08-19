@@ -1,5 +1,7 @@
 #include "chip8.h"
 #include <fstream>
+#include <cstring>
+#include <iostream>
 
 const unsigned int START_ADDRESS = 0x200;
 const unsigned int FONTSET_START_ADDRESS = 0x50;
@@ -100,6 +102,8 @@ void Chip8::Cycle()
 	// FETCH - opcode
 	opcode = (memory[pc] << 8u) | memory[pc + 1];
 
+	std::cout << std::hex << opcode << std::endl;
+
 	// Increment the program counter before we execute anything
 	pc += 2;
 
@@ -141,7 +145,7 @@ void Chip8::TableF()
 
 void Chip8::OP_NULL() {}
 
-void Chip8::LoadRom(char const *filename)
+void Chip8::LoadRom(std::string filename)
 {
 	// creates 'file' object
 	// two flags mean: open file as stream of binary, and move file pointer to the end
@@ -176,6 +180,7 @@ void Chip8::LoadRom(char const *filename)
 // sets all pixels in video buffer to 0
 void Chip8::OP_00E0()
 {
+	std::cout << "Display Cleared." << std::endl;
 	memset(video, 0, sizeof(video));
 }
 
@@ -183,7 +188,9 @@ void Chip8::OP_00E0()
 // uses & operator to get the last 3 nibbles of the opcode, sets pc to that value
 void Chip8::OP_1nnn()
 {
+	// std::cout << "before Jump, pc = " << std::hex << pc << std::endl;
 	pc = opcode & 0x0FFFu;
+	// std::cout << "after Jump, pc = " << std::hex << pc << std::endl;
 }
 
 // Set Register Vx == kk
@@ -194,6 +201,7 @@ void Chip8::OP_6xkk()
 	uint8_t register_num = (opcode & 0x0F00u) >> 8u;
 	uint8_t value = opcode & 0x00FFu;
 	registers[register_num] = value;
+	std::cout << "set register" << static_cast<int>(register_num) << " = " << std::hex << static_cast<int>(registers[register_num]) << std::endl;
 }
 
 // Add Vx; Vx = Vx + kk
@@ -202,53 +210,63 @@ void Chip8::OP_7xkk()
 	uint8_t register_num = (opcode & 0x0F00u) >> 8u;
 	uint8_t value = opcode & 0x00FFu;
 	registers[register_num] += value;
+	std::cout << "add register" << static_cast<int>(register_num) << " = " << std::hex << static_cast<int>(registers[register_num]) << std::endl;
 }
 
 // Set Index Register I; Set I = nnn
 void Chip8::OP_Annn()
 {
 	index = opcode & 0x0FFFu;
+	std::cout << "set index register I =  " << std::hex << static_cast<int>(index) << std::endl;
 }
 
 // Display/Draw ; Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
 void Chip8::OP_Dxyn()
 {
-	uint8_t x = registers[(opcode & 0x0F00u >> 8u)] % 64;
-	uint8_t y = registers[(opcode & 0x00F0u >> 8u)] % 32;
+	// isolating Vx and Vy from opcode
+	uint8_t Vx = (opcode & 0x0F00u) >> 8u; // isolate 2nd nibble, shift right by 8 bits to get to LSB
+	uint8_t Vy = (opcode & 0x00F0u) >> 4u; // isolate 3rd nibble, shift right by 4 bits to get to LSB
+
+	// getting values of Vx and Vy registers
+	uint8_t x_coord = registers[Vx] % 64; //  if x_coord is 68(exceeding display width), it will wrap and become 4
+	uint8_t y_coord = registers[Vy] % 32;
+	// the STARTING POSITION of the sprite wraps, not the actual drawing
+
+	// initializing flag register VF to 0
 	registers[0xF] = 0;
+
+	// isolating sprite height from opcode
 	uint8_t height = opcode & 0x000Fu;
 
 	for (int row = 0; row < height; row++)
 	{
+		// sprite is loaded into memory location that index register holds,
+		// retrieve each byte from that location, one byte of sprite data = one row
 		uint8_t sprite_byte = memory[index + row];
 		for (int col = 0; col < 8; col++)
 		{
+			// isolating the bit corresponding to current column
 			uint8_t sprite_pixel = sprite_byte & (0x80u >> col);
-			uint8_t screen_pixel = video[(y + row) * 32 + (x + col)];
 
+			// declares screen_pixel as a pointer to an unsigned 32-bit integer
+			// assigns the memory address of the pixel to screen_pixel
+			// screen_pixel points to the memory location of the target pixel,
+			// so we can now use screen_pixel to directly modify that pixel
+			uint32_t *screen_pixel = &video[(y_coord + row) * 32 + (x_coord + col)];
+
+			// checks if sprite_pixel == 1, or is "on"
 			if (sprite_pixel)
 			{
-				if (screen_pixel)
+				// if screen_pixel is on, set VF flag register to 1
+				if (*screen_pixel == 0xFFFFFFFF)
 				{
-					screen_pixel = 0;
 					registers[0xF] = 1;
 				}
-				else
-				{
-					screen_pixel = sprite_pixel;
-				}
-			}
 
-			if ((x + col) == 64)
-			{
-				break;
+				// ^= is bitwise XOR. if screen_pixel is off, it gets turned on.
+				// if screen_pixel is on, it gets turned off
+				*screen_pixel ^= 0xFFFFFFFF;
 			}
-			x++;
-		}
-		y++;
-		if ((y + row) == 32)
-		{
-			break;
 		}
 	}
 }
@@ -282,10 +300,18 @@ void Chip8::OP_5xy0()
 {
 }
 
-// 6xkk - LD Vx, byte ; Set Vx = kk.
-void Chip8::OP_6xkk()
+void Chip8::OP_9xy0()
 {
 }
+
+void Chip8::OP_Bnnn()
+{
+}
+
+void Chip8::OP_Cxkk()
+{
+}
+
 // 8xy0 - LD Vx, Vy ; Set Vx = Vy.
 void Chip8::OP_8xy0()
 {
@@ -321,9 +347,33 @@ void Chip8::OP_8xy5()
 {
 }
 
+void Chip8::OP_8xy6()
+{
+}
+
 // 8xy7 - SUBN Vx, Vy ; Set Vx = Vy - Vx, set VF = NOT borrow.
 // If Vy > Vx, then VF is set to 1, otherwise 0. Then Vx is subtracted from Vy, and the results stored in Vx.
 
 void Chip8::OP_8xy7()
 {
 }
+
+void Chip8::OP_8xyE()
+{
+}
+
+void Chip8::OP_Fx07()
+{
+}
+void Chip8::OP_Fx0A()
+{
+}
+void Chip8::OP_Fx15() {}
+void Chip8::OP_Fx18() {}
+void Chip8::OP_Fx1E() {}
+void Chip8::OP_Fx29() {}
+void Chip8::OP_Fx33() {}
+void Chip8::OP_Fx55() {}
+void Chip8::OP_Fx65() {}
+void Chip8::OP_Ex9E() {}
+void Chip8::OP_ExA1() {}

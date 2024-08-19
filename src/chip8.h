@@ -2,12 +2,16 @@
 #define CHIP8_H
 
 #include <cstdint>
+#include <string>
 
 class Chip8
 {
 public:
     Chip8();
     void Cycle();
+    void LoadRom(std::string filename);
+    uint32_t video[64 * 32]{};
+    uint8_t keypad[16]{};
 
 private:
     uint8_t registers[16]{};
@@ -18,12 +22,7 @@ private:
     uint8_t sp{};
     uint8_t delay_timer{};
     uint8_t sound_timer{};
-    uint8_t keypad[16]{};
-    uint32_t video[64 * 32]{};
     uint16_t opcode;
-
-    // font set
-    uint8_t fontset[FONTSET_SIZE];
 
     // function pointer tables (NEEDS IMPLEMENTATION)
     void Table0();
@@ -84,8 +83,6 @@ private:
     void OP_Bnnn();
     void OP_Cxkk();
     void OP_Dxyn();
-
-    void LoadRom(char const *filename) {}
 };
 
 #endif
