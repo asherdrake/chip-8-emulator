@@ -2,6 +2,7 @@
 #include <fstream>
 #include <cstring>
 #include <iostream>
+#include <algorithm>
 
 const unsigned int START_ADDRESS = 0x200;
 const unsigned int FONTSET_START_ADDRESS = 0x50;
@@ -340,12 +341,20 @@ void Chip8::OP_9xy0()
 	}
 }
 
+// Bnnn - Jump with offset
+// jumps to address nnn + V0
 void Chip8::OP_Bnnn()
 {
+	uint16_t target_address = opcode & 0x0FFFu;
+	pc = target_address + registers[0x0];
 }
 
+// UNFINISHED
+//  Cxkk - Random
+//  generates a random number, binary ANDs it with value kk, stores in Vx
 void Chip8::OP_Cxkk()
 {
+	uint8_t value = opcode & 0x00FFu;
 }
 
 // 8xy0 - LD Vx, Vy ; Set Vx = Vy.
@@ -401,21 +410,44 @@ void Chip8::OP_8xy4()
 // If Vx > Vy, then VF is set to 1, otherwise 0. Then Vy is subtracted from Vx, and the results stored in Vx.
 void Chip8::OP_8xy5()
 {
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t register_num_y = (opcode & 0x00F0u) >> 4u;
+	uint16_t difference = registers[register_num_x] - registers[register_num_y];
+	registers[register_num_x] = difference;
+	registers[0xF] = registers[register_num_x] > registers[register_num_y] ? 1 : 0;
 }
 
+// 8xy6 - Vx = Vy, then bitshift Vx 1 bit to the right
+// VF = shifted out bit
 void Chip8::OP_8xy6()
 {
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t register_num_y = (opcode & 0x00F0u) >> 4u;
+	uint8_t shifted_out = registers[register_num_x] & 0x01u;
+	registers[register_num_x] = registers[register_num_y] >> 1u;
+	registers[0xF] = shifted_out;
 }
 
 // 8xy7 - SUBN Vx, Vy ; Set Vx = Vy - Vx, set VF = NOT borrow.
 // If Vy > Vx, then VF is set to 1, otherwise 0. Then Vx is subtracted from Vy, and the results stored in Vx.
-
 void Chip8::OP_8xy7()
 {
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t register_num_y = (opcode & 0x00F0u) >> 4u;
+	uint16_t difference = registers[register_num_y] - registers[register_num_x];
+	registers[register_num_x] = difference;
+	registers[0xF] = registers[register_num_y] > registers[register_num_x] ? 1 : 0;
 }
 
+// 8xyE - Vx = Vy, then bitshift Vx 1 bit to the left
+// VF = shifted out bit
 void Chip8::OP_8xyE()
 {
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t register_num_y = (opcode & 0x00F0u) >> 4u;
+	uint8_t shifted_out = registers[register_num_x] & 0x80u;
+	registers[register_num_x] = registers[register_num_y] << 1u;
+	registers[0xF] = shifted_out;
 }
 
 void Chip8::OP_Fx07()
@@ -431,5 +463,25 @@ void Chip8::OP_Fx29() {}
 void Chip8::OP_Fx33() {}
 void Chip8::OP_Fx55() {}
 void Chip8::OP_Fx65() {}
-void Chip8::OP_Ex9E() {}
-void Chip8::OP_ExA1() {}
+
+// Ex9E - Skip if key corresponding to Vx is pressed
+void Chip8::OP_Ex9E()
+{
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t Vx = registers[register_num_x];
+	if (keypad[Vx])
+	{
+		pc += 2;
+	}
+}
+
+// ExA1 - Skip if key corresponding to Vx is NOT pressed
+void Chip8::OP_ExA1()
+{
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t Vx = registers[register_num_x];
+	if (!keypad[Vx])
+	{
+		pc += 2;
+	}
+}
