@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <string>
+#include <stack>
 
 class Chip8
 {
@@ -18,7 +19,7 @@ private:
     uint8_t memory[4096]{};
     uint16_t index{};
     uint16_t pc{};
-    uint16_t stack[16]{};
+    std::stack<uint16_t> stack{};
     uint8_t sp{};
     uint8_t delay_timer{};
     uint8_t sound_timer{};

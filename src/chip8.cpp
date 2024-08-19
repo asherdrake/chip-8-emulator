@@ -272,36 +272,72 @@ void Chip8::OP_Dxyn()
 }
 
 // Return from a subroutine. Overwrites preemptive pc += 2
-
+// done by popping the last address from the stack and setting the PC to it
 void Chip8::OP_00EE()
 {
+	pc = stack.top();
+	stack.pop();
 }
 
 // 2nnn - CALL addr; Call subroutine at nnn.
-
 void Chip8::OP_2nnn()
 {
+	stack.push(pc);
+	pc = opcode & 0x0FFFu;
 }
 
 // 3xkk - SE Vx, byte; Skip next instruction if Vx = kk.
-
 void Chip8::OP_3xkk()
 {
+	uint8_t register_num = (opcode & 0x0F00u) >> 8u;
+	uint8_t Vx = registers[register_num];
+	uint8_t kk = opcode & 0x00FFu;
+	if (Vx == kk)
+	{
+		pc += 2;
+	}
 }
 
 // 4xkk - SNE Vx, byte Skip next instruction if Vx != kk.
-
 void Chip8::OP_4xkk()
 {
+	uint8_t register_num = (opcode & 0x0F00u) >> 8u;
+	uint8_t Vx = registers[register_num];
+	uint8_t kk = opcode & 0x00FFu;
+	if (Vx != kk)
+	{
+		pc += 2;
+	}
 }
 
 // 5xy0 - SE Vx, Vy; Skip next instruction if Vx = Vy.
 void Chip8::OP_5xy0()
 {
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t Vx = registers[register_num_x];
+
+	uint8_t register_num_y = (opcode & 0x00F0u) >> 4u;
+	uint8_t Vy = registers[register_num_y];
+
+	if (Vx == Vy)
+	{
+		pc += 2;
+	}
 }
 
+// 9xy0 - SE Vx, Vy; Skip next instruction if Vx != Vy.
 void Chip8::OP_9xy0()
 {
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t Vx = registers[register_num_x];
+
+	uint8_t register_num_y = (opcode & 0x00F0u) >> 4u;
+	uint8_t Vy = registers[register_num_y];
+
+	if (Vx != Vy)
+	{
+		pc += 2;
+	}
 }
 
 void Chip8::OP_Bnnn()
@@ -315,22 +351,38 @@ void Chip8::OP_Cxkk()
 // 8xy0 - LD Vx, Vy ; Set Vx = Vy.
 void Chip8::OP_8xy0()
 {
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t register_num_y = (opcode & 0x00F0u) >> 4u;
+
+	registers[register_num_x] = registers[register_num_y];
 }
 
 // BITWISE
 // 8xy1 - OR Vx, Vy; Set Vx = Vx OR Vy.
 void Chip8::OP_8xy1()
 {
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t register_num_y = (opcode & 0x00F0u) >> 4u;
+
+	registers[register_num_x] |= registers[register_num_y];
 }
 
 // 8xy2 - AND Vx, Vy Set Vx = Vx AND Vy.
 void Chip8::OP_8xy2()
 {
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t register_num_y = (opcode & 0x00F0u) >> 4u;
+
+	registers[register_num_x] &= registers[register_num_y];
 }
 
 // 8xy3 - XOR Vx, Vy Set Vx = Vx XOR Vy.
 void Chip8::OP_8xy3()
 {
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t register_num_y = (opcode & 0x00F0u) >> 4u;
+
+	registers[register_num_x] ^= registers[register_num_y];
 }
 
 // 8xy4 - ADD Vx, Vy; Set Vx = Vx + Vy, set VF = carry.
@@ -338,11 +390,15 @@ void Chip8::OP_8xy3()
 
 void Chip8::OP_8xy4()
 {
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t register_num_y = (opcode & 0x00F0u) >> 4u;
+	uint16_t sum = registers[register_num_x] + registers[register_num_y];
+	registers[register_num_x] = sum & 0x00FFu;
+	registers[0xF] = sum > 255 ? 1 : 0;
 }
 
 // 8xy5 - SUB Vx, Vy ; Set Vx = Vx - Vy, set VF = NOT borrow.
 // If Vx > Vy, then VF is set to 1, otherwise 0. Then Vy is subtracted from Vx, and the results stored in Vx.
-
 void Chip8::OP_8xy5()
 {
 }
