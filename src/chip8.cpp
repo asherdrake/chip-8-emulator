@@ -3,6 +3,8 @@
 #include <cstring>
 #include <iostream>
 #include <algorithm>
+#include <random>
+#include <chrono>
 
 const unsigned int START_ADDRESS = 0x200;
 const unsigned int FONTSET_START_ADDRESS = 0x50;
@@ -26,8 +28,11 @@ uint8_t fontset[FONTSET_SIZE] = {
 	0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 };
 
-Chip8::Chip8()
+Chip8::Chip8() : randGen(std::chrono::system_clock::now().time_since_epoch().count())
 {
+	// initialize RNG
+	randByte = std::uniform_int_distribution<uint8_t>(0, 255U);
+
 	// function pointer table setup
 	// unique opcodes
 	table[0x0] = &Chip8::Table0;
@@ -355,6 +360,9 @@ void Chip8::OP_Bnnn()
 void Chip8::OP_Cxkk()
 {
 	uint8_t value = opcode & 0x00FFu;
+
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	registers[register_num_x] = randByte(randGen) & value;
 }
 
 // 8xy0 - LD Vx, Vy ; Set Vx = Vy.
@@ -450,19 +458,109 @@ void Chip8::OP_8xyE()
 	registers[0xF] = shifted_out;
 }
 
+// Fx07 - sets Vx to the current value of the delay timer
 void Chip8::OP_Fx07()
 {
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	registers[register_num_x] = delay_timer;
 }
+
+// Fx0A - stops executing instructions, waits for key input
+// if a key is pressed, store the hex value of that key in Vx and continue execution
 void Chip8::OP_Fx0A()
 {
+	int pressed_key = -1;
+	for (int i = 0; i < 16; i++)
+	{
+		if (keypad[i] != 0)
+		{
+			pressed_key = i;
+			break;
+		}
+	}
+
+	if (pressed_key == -1)
+	{
+		pc -= 2;
+	}
+	else
+	{
+		uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+		registers[register_num_x] = pressed_key;
+	}
 }
-void Chip8::OP_Fx15() {}
-void Chip8::OP_Fx18() {}
-void Chip8::OP_Fx1E() {}
-void Chip8::OP_Fx29() {}
-void Chip8::OP_Fx33() {}
-void Chip8::OP_Fx55() {}
-void Chip8::OP_Fx65() {}
+
+// Fx15 - sets delay timer to the value in Vx
+void Chip8::OP_Fx15()
+{
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	delay_timer = registers[register_num_x];
+}
+
+// Fx18 - sets sound timer to the value in Vx
+void Chip8::OP_Fx18()
+{
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	sound_timer = registers[register_num_x];
+}
+
+// Fx1e - index register incremented by the value in Vx
+void Chip8::OP_Fx1E()
+{
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	index += registers[register_num_x];
+}
+
+// Fx29 - index register is set to the address of the hex character in Vx
+void Chip8::OP_Fx29()
+{
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t hex_character = registers[register_num_x];
+	index = FONTSET_START_ADDRESS + (5 * hex_character);
+}
+
+// Fx33 - takes num in Vx, converts to three decimal digits, stores digits in memory at
+// address in index register I.
+void Chip8::OP_Fx33()
+{
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t num = registers[register_num_x];
+
+	// ones place
+	memory[index + 2] = num % 10;
+	num /= 10;
+
+	// tens place
+	memory[index + 1] = num % 10;
+	num /= 10;
+
+	// hundreds place
+	memory[index] = num % 10;
+}
+
+// Fx55 - stores the value of each variable register from V0 to VX inclusive
+// in successive memory addresses, starting with the address stored in index register
+void Chip8::OP_Fx55()
+{
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t x = registers[register_num_x];
+	for (int i = 0; i <= x; i++)
+	{
+		memory[index + i] = registers[i];
+	}
+}
+
+// Fx65 - opposite of Fx55; takes value stored at memory address and loads them into
+// variable registers
+void Chip8::OP_Fx65()
+{
+	uint8_t register_num_x = (opcode & 0x0F00u) >> 8u;
+	uint8_t x = registers[register_num_x];
+	for (int i = 0; i <= x; i++)
+	{
+		registers[i] = memory[index + i];
+	}
+}
 
 // Ex9E - Skip if key corresponding to Vx is pressed
 void Chip8::OP_Ex9E()

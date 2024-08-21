@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <stack>
+#include <random>
 
 class Chip8
 {
@@ -24,6 +25,8 @@ private:
     uint8_t delay_timer{};
     uint8_t sound_timer{};
     uint16_t opcode;
+    std::uniform_int_distribution<uint8_t> randByte;
+    std::default_random_engine randGen;
 
     // function pointer tables (NEEDS IMPLEMENTATION)
     void Table0();
